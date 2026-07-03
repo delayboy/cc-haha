@@ -128,6 +128,9 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
   const t = useTranslation()
   const isPending = Boolean(pendingPermission)
   const [showRaw, setShowRaw] = useState(false)
+  const [showGuidance, setShowGuidance] = useState(false)
+  const [guidance, setGuidance] = useState('')
+  const trimmedGuidance = guidance.trim()
 
   if (isExitPlanModeTool(toolName)) {
     return (
@@ -249,6 +252,19 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
         )}
       </div>
 
+      {/* Guidance feedback (optional, collapsible) */}
+      {isPending && showGuidance && (
+        <div className="border-t border-[var(--color-outline-variant)]/20 px-4 py-3">
+          <textarea
+            value={guidance}
+            onChange={(event) => setGuidance(event.target.value)}
+            placeholder={t('permission.guidancePlaceholder')}
+            rows={3}
+            className="min-h-[72px] w-full resize-y rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none transition-colors placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-warning)]/60 focus:ring-2 focus:ring-[var(--color-warning)]/15"
+          />
+        </div>
+      )}
+
       {/* Action buttons */}
       {isPending && (
         <div className="flex items-center gap-2 border-t border-[var(--color-outline-variant)]/20 bg-[var(--color-surface-container-low)] px-4 py-3">
@@ -275,16 +291,30 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
             {t('permission.allowForSession')}
           </Button>
           <div className="flex-1" />
+          {showGuidance ? null : (
+            <button
+              onClick={() => setShowGuidance(true)}
+              className="flex cursor-pointer items-center gap-1 text-[11px] text-[var(--color-text-accent)] hover:underline"
+            >
+              <span className="material-symbols-outlined text-[14px]">edit_note</span>
+              {t('permission.addGuidance')}
+            </button>
+          )}
           <Button
             variant="danger"
             size="sm"
             aria-label={`${t('permission.deny')}: ${permissionContext}`}
-            onClick={() => targetSessionId && respondToPermission(targetSessionId, requestId, false)}
+            onClick={() => targetSessionId && respondToPermission(
+              targetSessionId,
+              requestId,
+              false,
+              trimmedGuidance ? { denyMessage: trimmedGuidance } : undefined,
+            )}
             icon={
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">close</span>
             }
           >
-            {t('permission.deny')}
+            {trimmedGuidance ? t('permission.denyWithGuidance') : t('permission.deny')}
           </Button>
         </div>
       )}
