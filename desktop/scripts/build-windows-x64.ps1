@@ -9,6 +9,12 @@ param(
 #   REBUILD_NATIVE=1      Rebuild Electron native dependencies before packaging.
 #   SKIP_PACKAGE_SMOKE=1  Skip static package-smoke verification after copying artifacts.
 
+# 放行ps脚本执行权限
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 设置环境变量
+$env:Path = "C:\Users\Benson\.cargo\bin;Z:\Program Files (Portable)\node-v24.15.0-win-x64\;$PWD;$env:Path"
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -148,14 +154,13 @@ try {
     }
   }
 
-  $args = @('electron-builder', '--win', 'nsis', '--x64', '--publish', 'never')
-  $remainingArgs = @($BuilderArgs)
-  if ($remainingArgs.Count -gt 0) {
-    $args += $remainingArgs
+  $builderCmdArgs = @('electron-builder', '--win', 'nsis', '--x64', '--publish', 'never')
+  if ($BuilderArgs) {
+    $builderCmdArgs += @($BuilderArgs)
   }
 
   Write-Step 'Packaging Electron app...'
-  & bunx @args
+  & bunx @builderCmdArgs
   if ($LASTEXITCODE -ne 0) {
     throw "[build-windows-x64] electron-builder failed (exit $LASTEXITCODE)"
   }
