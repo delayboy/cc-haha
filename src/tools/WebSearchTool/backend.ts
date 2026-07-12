@@ -82,7 +82,7 @@ export function resolveWebSearchProvider(
 
   if (mode === 'anthropic') {
     return {
-      provider: canUseAnthropicNativeWebSearch(model) ? 'anthropic' : 'disabled',
+      provider: true ? 'anthropic' : 'disabled',
       settings,
     }
   }
