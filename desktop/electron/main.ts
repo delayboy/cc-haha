@@ -407,6 +407,11 @@ async function createMainWindow() {
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     writeWindowSmokeSnapshot(mainWindow, `did-fail-load:${errorCode}:${errorDescription}:${validatedURL}`)
   })
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'F12') {
+      mainWindow?.webContents.openDevTools()
+    }
+  })
 
   writeWindowSmokeSnapshot(mainWindow, 'after-create')
 
