@@ -44,8 +44,7 @@ function computeSearchText(msg: RenderableMessage): string {
           } else if (b.type === 'tool_result') {
             // b.content is the MODEL-facing serialization (from each tool's
             // mapToolResultToToolResultBlockParam) — adds system-reminders,
-            // <persisted-output> wrappers, backgroundInfo strings,
-            // CYBER_RISK_MITIGATION_REMINDER. The UI
+            // <persisted-output> wrappers, backgroundInfo strings. The UI
             // renders msg.toolUseResult (the tool's native Out) via
             // renderToolResultMessage — DIFFERENT text. Indexing b.content
             // yields phantoms: /malware → matches the reminder, /background
