@@ -72,8 +72,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "NanmiCoder",
-        "repo": "cc-haha"
+        "owner": "delayboy",
+        "repo": "claude-code-haha"
       }
     ]
   },

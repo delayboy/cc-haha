@@ -45,7 +45,6 @@ let pendingUpdateProxyKey: string | null = null
 let pendingUpdateDownloaded = false
 let downloadPromise: Promise<void> | null = null
 let downloadingProxyKey: string | null = null
-let startupCheckPromise: Promise<void> | null = null
 let relaunchWatchdog: ReturnType<typeof setTimeout> | null = null
 
 function clearRelaunchWatchdog() {
@@ -194,20 +193,11 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
   shouldPrompt: false,
 
   initialize: async () => {
-    if (!getUpdateHost()) return
-    if (!startupCheckPromise) {
-      startupCheckPromise = (async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5000))
-        await get().checkForUpdates({ silent: true })
-      })().finally(() => {
-        startupCheckPromise = null
-      })
-    }
-
-    await startupCheckPromise
+    // Auto-update disabled: startup no longer pings GitHub.
+    // Users can still manually trigger "Check for updates" in Settings.
   },
 
-  checkForUpdates: async ({ silent = false, autoDownload = true } = {}) => {
+  checkForUpdates: async ({ silent = false, autoDownload = false } = {}) => {
     const host = getUpdateHost()
     if (!host) return null
     if (downloadPromise && get().status === 'downloading' && pendingUpdate) return pendingUpdate
