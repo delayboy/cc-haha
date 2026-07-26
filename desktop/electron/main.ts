@@ -587,6 +587,11 @@ async function createMainWindow() {
     appendHostDiagnostic(diagnosticsFile, `[renderer] ${sanitized}`)
     return sanitized
   }
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'F12') {
+      mainWindow?.webContents.openDevTools()
+    }
+  })
 
   window.on('resize', () => {
     if (window.isDestroyed()) return
