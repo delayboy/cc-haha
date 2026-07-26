@@ -152,6 +152,49 @@ function Invoke-LegacyRecoveryDiagnostic {
   [Console]::Out.WriteLine('Direct legacy recovery diagnostic completed successfully.')
 }
 
+function Clear-ConflictingInstallProcesses {
+  param([Parameter(Mandatory = $true)][string]$TestRoot)
+
+  # When COMPLUS_Version is poisoned the installer falls back to a name-only
+  # findstr pass over tasklist (see installer.nsh:CcHahaFindInstallProcess).
+  # That pass can't see paths, so leaked claude-sidecar / ripgrep processes
+  # left over from earlier CI steps (e.g. test:compiled-sidecar-smoke) make
+  # the no-CLR reinstall stages exit 22 before legacy recovery even runs.
+  # Tear down those strays before the CLR-sensitive stages so the installer
+  # actually reaches the recovery helper and can fail with exit code 20.
+  $protectedImageNames = @(
+    'Claude Code Haha.exe',
+    'claude-sidecar-x86_64-pc-windows-msvc.exe',
+    'claude-sidecar-aarch64-pc-windows-msvc.exe',
+    'claude-sidecar.exe',
+    'OpenConsole.exe',
+    'winpty-agent.exe',
+    'rg.exe'
+  )
+
+  $resolvedTestRoot = (Resolve-Path -LiteralPath $TestRoot).Path.TrimEnd('\') + '\'
+
+  foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+    if ($process.ProcessId -eq $PID) { continue }
+    $name = [string]$process.Name
+    if ($protectedImageNames -notcontains $name) { continue }
+
+    $path = [string]$process.ExecutablePath
+    if ([string]::IsNullOrWhiteSpace($path)) {
+      [Console]::Out.WriteLine("Conflicting install-process candidate without a path; ignoring: PID=$($process.ProcessId) Name=$name")
+      continue
+    }
+
+    $resolvedPath = [IO.Path]::GetFullPath($path)
+    if ($resolvedPath.StartsWith($resolvedTestRoot, [StringComparison]::OrdinalIgnoreCase)) {
+      continue
+    }
+
+    [Console]::Out.WriteLine("Clearing leaked install-process candidate: PID=$($process.ProcessId) Name=$name Path=$resolvedPath")
+    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+}
+
 try {
   New-Item -ItemType Directory -Path $appData, $localAppData, $userProfile -Force | Out-Null
   $env:APPDATA = $appData
@@ -207,6 +250,7 @@ try {
   Copy-Item -LiteralPath $processProbeSource -Destination $bundledHelperProbe
   $bundledHelperProcess = Start-Process -FilePath $bundledHelperProbe -ArgumentList @('-t', '127.0.0.1') -PassThru
   Start-Sleep -Milliseconds 500
+  Clear-ConflictingInstallProcesses -TestRoot $testRoot
   $env:COMPLUS_Version = 'v0.0.0-test-invalid-clr'
   Invoke-ProcessExpectFailure -FilePath $installer -Stage 'No-CLR external bundled-helper process reinstall' -ExpectedExitCode 22 -Arguments @('--updated', '/S', '/currentuser', "/D=$installDir")
   if ($bundledHelperProcess.HasExited) {
@@ -218,6 +262,7 @@ try {
   $bundledHelperProcess.Dispose()
   $bundledHelperProcess = $null
 
+  Clear-ConflictingInstallProcesses -TestRoot $testRoot
   $env:COMPLUS_Version = 'v0.0.0-test-invalid-clr'
   if (Test-IsProcessElevated) {
     Invoke-ProcessExpectFailure -FilePath $installer -Stage 'Elevated default-mode reinstall without CLR' -ExpectedExitCode 20 -Arguments @('--updated', '/S', '/currentuser', "/D=$installDir")
@@ -233,6 +278,7 @@ try {
   $legacySentinel = Join-Path $legacyDir 'settings.json'
   New-Item -ItemType Directory -Path $legacyDir -Force | Out-Null
   Set-Content -LiteralPath $legacySentinel -Value 'must-survive-failed-upgrade' -NoNewline
+  Clear-ConflictingInstallProcesses -TestRoot $testRoot
   $env:COMPLUS_Version = 'v0.0.0-test-invalid-clr'
   Invoke-ProcessExpectFailure -FilePath $installer -Stage 'Portable reinstall without CLR' -ExpectedExitCode 20 -Arguments @('--updated', '/S', '/currentuser', "/D=$installDir")
   Remove-Item Env:COMPLUS_Version -ErrorAction SilentlyContinue
