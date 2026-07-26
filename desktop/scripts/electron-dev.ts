@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createServer, type ViteDevServer } from 'vite'
 
 export const DEFAULT_RENDERER_URL = 'http://localhost:1420'
 export const LOCAL_NO_PROXY_ENTRIES = ['localhost', '127.0.0.1', '::1']
@@ -56,20 +55,6 @@ async function waitForRenderer(rendererUrl: string) {
   throw new Error(`Timed out waiting for Vite renderer at ${rendererUrl}`)
 }
 
-async function startVite(desktopRoot: string) {
-  const server = await createServer({
-    root: desktopRoot,
-    configFile: path.join(desktopRoot, 'vite.config.ts'),
-  })
-  await server.listen()
-  server.printUrls()
-  return server
-}
-
-async function closeVite(server: ViteDevServer) {
-  await server.close().catch(() => undefined)
-}
-
 async function main() {
   const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   const childEnv = createElectronDevEnv()
@@ -77,17 +62,26 @@ async function main() {
   process.env.NO_PROXY = childEnv.NO_PROXY
   process.env.no_proxy = childEnv.no_proxy
 
-  const vite = await startVite(desktopRoot)
+  // Vite 必须起独立子进程：进程内 createServer() 跑在 Bun 的 Node http 兼容层上，
+  // 同进程 fetch 连不上自托管的 dev server，会卡到 waitForRenderer 超时。
+  const vite = Bun.spawn([process.execPath, 'run', 'dev'], {
+    cwd: desktopRoot,
+    env: childEnv,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
 
-  async function stopVite() {
-    await closeVite(vite)
+  function stopVite() {
+    vite.kill()
   }
 
   process.on('SIGINT', () => {
-    void stopVite().finally(() => process.exit(130))
+    stopVite()
+    process.exit(130)
   })
   process.on('SIGTERM', () => {
-    void stopVite().finally(() => process.exit(143))
+    stopVite()
+    process.exit(143)
   })
 
   await waitForRenderer(rendererUrl)
@@ -103,7 +97,7 @@ async function main() {
     electron.once('error', reject)
     electron.once('exit', code => resolve(code ?? 0))
   })
-  await stopVite()
+  stopVite()
   process.exit(exitCode)
 }
 
