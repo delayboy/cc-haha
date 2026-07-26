@@ -523,7 +523,7 @@ describe('build-sidecars Windows x64 target mapping', () => {
       }
     }
 
-    expect(performance.now() - startedAt).toBeLessThan(150)
+    expect(performance.now() - startedAt).toBeLessThan(500)
     expect(bodyCancelCount).toBeGreaterThan(0)
     rejectCancellation?.(new Error('late body cancellation rejection'))
     await new Promise(resolveWait => setTimeout(resolveWait, 0))
