@@ -328,6 +328,24 @@ async function terminateCompiledSidecar(processHandle: SidecarProcess): Promise<
     await processHandle.exited
     return
   }
+  if (process.platform === 'win32') {
+    // Windows 下 Node 的 child.kill() 只对 child.pid 调 TerminateProcess，
+    // 杀不到 sidecar 派生的孙进程；残留进程会锁住 exe，下次 build 报
+    // FailedToCommit。taskkill /F /T 连整棵进程树一起带走。
+    const pid = processHandle.child.pid
+    if (pid !== undefined) {
+      const kill = spawn('taskkill', ['/F', '/T', '/PID', String(pid)], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      await new Promise<void>(resolve => {
+        kill.once('exit', () => resolve())
+        kill.once('error', () => resolve())
+      })
+    }
+    await processHandle.exited
+    return
+  }
   processHandle.child.kill('SIGTERM')
   const graceful = await Promise.race([
     processHandle.exited.then(() => true),
